@@ -14,20 +14,21 @@ def extract_data_from_xml(file, filename):
 
         data = []
 
-        for app in root.findall('App'):
+        for app in root.findall('.//App'):  # App en cualquier nivel
             parttype_element = app.find('PartType')
             parttype_id = parttype_element.get('id', '') if parttype_element is not None else ""
 
             notes = [n.text or "" for n in app.findall('.//Note')]
             texts = [t.text or "" for t in app.findall('.//Text')]
+            labels = [l.text or "" for l in app.findall('.//MfrLabel')]
 
-            for note in notes + texts:
-                if note or parttype_id:
+            for value in notes + texts + labels:
+                if value or parttype_id:
                     data.append({
-                        'Note/Text': note,
+                        'Note/Text/MfrLabel': value,
                         'PartType_ID': parttype_id,
                         'Source_File': filename,
-                        'key': parttype_id + filename + note
+                        'key': parttype_id + filename + value
                     })
 
         return data

@@ -92,7 +92,7 @@ if uploaded_files:
     if st.button("Convertir a Excel"):
         excel_file, df_preview = convert_xmls_to_excel(uploaded_files)
 
-        st.write(f"Unique Notes/Text: {df_preview['Note/Text'].nunique()}")
+        st.write(f"Unique Notes/Text/MfrLabel: {df_preview['Note/Text/MfrLabel'].nunique()}")
         st.write(f"Unique PartType_IDs: {df_preview['PartType_ID'].nunique()}")
 
         if excel_file:

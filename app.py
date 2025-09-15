@@ -18,8 +18,8 @@ def extract_data_from_xml(file, filename):
             parttype_element = app.find('PartType')
             parttype_id = parttype_element.get('id', '') if parttype_element is not None else ""
 
-            notes = [n.text or "" for n in app.findall('Note')]
-            texts = [t.text or "" for t in app.findall('Text')]
+            notes = [n.text or "" for n in app.findall('.//Note')]
+            texts = [t.text or "" for t in app.findall('.//Text')]
 
             for note in notes + texts:
                 if note or parttype_id:

@@ -6,7 +6,7 @@ import os
 
 def extract_data_from_xml(file, filename):
     """
-    Extrae datos de Note/Text y PartType id de un archivo XML (desde UploadedFile)
+    Extrae todos los datos de Note/Text y PartType id de un archivo XML (desde UploadedFile)
     """
     try:
         tree = ET.parse(file)
@@ -15,26 +15,20 @@ def extract_data_from_xml(file, filename):
         data = []
 
         for app in root.findall('App'):
-            note = ""
-            note_element = app.find('Note')
-            if note_element is not None:
-                note = note_element.text or ""
-            else:
-                text_element = app.find('Text')
-                if text_element is not None:
-                    note = text_element.text or ""
-
-            parttype_id = ""
             parttype_element = app.find('PartType')
             parttype_id = parttype_element.get('id', '') if parttype_element is not None else ""
 
-            if note or parttype_id:
-                data.append({
-                    'Note/Text': note,
-                    'PartType_ID': parttype_id,
-                    'Source_File': filename,
-                    'key': parttype_id + filename
-                })
+            notes = [n.text or "" for n in app.findall('Note')]
+            texts = [t.text or "" for t in app.findall('Text')]
+
+            for note in notes + texts:
+                if note or parttype_id:
+                    data.append({
+                        'Note/Text': note,
+                        'PartType_ID': parttype_id,
+                        'Source_File': filename,
+                        'key': parttype_id + filename + note
+                    })
 
         return data
 

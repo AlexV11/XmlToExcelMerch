@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 from io import BytesIO
 import os
 
+
 def extract_data_from_xml(file, filename):
     """
     Extrae todos los datos de Note/Text y PartType id de un archivo XML (desde UploadedFile)
@@ -18,9 +19,10 @@ def extract_data_from_xml(file, filename):
             parttype_element = app.find('PartType')
             parttype_id = parttype_element.get('id', '') if parttype_element is not None else ""
 
-            notes = [n.text or "" for n in app.findall('.//Note')]
-            texts = [t.text or "" for t in app.findall('.//Text')]
-            labels = [l.text or "" for l in app.findall('.//MfrLabel')]
+            notes = [n.text or "" for n in app.findall('.//Note')] + [n.text or "" for n in app.findall('.//note')]
+            texts = [t.text or "" for t in app.findall('.//Text')] + [t.text or "" for t in app.findall('.//text')]
+            labels = [l.text or "" for l in app.findall('.//MfrLabel')] + [l.text or "" for l in
+                                                                           app.findall('.//mfrlabel')]
 
             for value in notes + texts + labels:
                 if value or parttype_id:
@@ -39,6 +41,7 @@ def extract_data_from_xml(file, filename):
     except Exception as e:
         st.error(f"Error procesando archivo {filename}: {type(e).__name__} - {str(e)}")
         return []
+
 
 def convert_xmls_to_excel(uploaded_files):
     """
@@ -76,6 +79,7 @@ def convert_xmls_to_excel(uploaded_files):
         return output, df
     else:
         return None, None
+
 
 # Streamlit UI
 st.title("XML to Excel Converter")

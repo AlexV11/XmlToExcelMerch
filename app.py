@@ -21,48 +21,63 @@ def load_replacements_from_excel(filepath="Replacements.xlsx"):
 
 replace_dict = load_replacements_from_excel()
 
+# ---------------------------
+# Función de limpieza robusta
+# ---------------------------
 def clean_text(text, replacements):
+    """
+    Reemplaza términos según 'replacements' de forma segura:
+    - términos alfanuméricos: reemplazo con límites de palabra (\b)
+    - términos con símbolos: reemplazo literal en cualquier posición;
+      si lo que sigue es letra/dígito, añade un espacio después del reemplazo
+    - evita reemplazos parciales gracias al orden por longitud inversa
+    - normaliza espacios múltiples al final
+    """
     if not text:
         return text
 
-    # Diccionario normalizado (todo a minúsculas para comparación)
-    norm_replacements = {k.lower(): v for k, v in replacements.items()}
+    s = text
 
-    # Ordenar términos por longitud inversa para no romper reemplazos
+    # Ordenar términos por longitud (más largos primero)
     sorted_terms = sorted(replacements.keys(), key=len, reverse=True)
 
-    # Crear patrón que busca cada término tal cual aparece
-    pattern = r'(' + '|'.join(re.escape(term) for term in sorted_terms) + r')'
+    for term in sorted_terms:
+        repl = replacements[term]
 
-    def replace_match(match):
-        found = match.group(0)
-        key = found.lower()
-        if key in norm_replacements:
-            new = norm_replacements[key]
-            # Si lo que viene después está pegado a letras/números, añadimos espacio
-            after = match.end()
-            if after < len(text) and text[after].isalnum():
-                return new + " "
-            return new
-        return found
+        # ¿term es estrictamente \w+ (letras/dígitos/underscore)?
+        if re.fullmatch(r'\w+', term):
+            # usar límites de palabra: no reemplaza dentro de otras palabras
+            pattern = r'\b' + re.escape(term) + r'\b'
+            s = re.sub(pattern, repl, s, flags=re.IGNORECASE)
+        else:
+            # term contiene símbolos (/, ., -, etc.): buscamos literal en cualquier lugar
+            # añadimos espacio si lo que sigue al match es alfanumérico
+            def _repl_nonword(m):
+                # m.string es la cadena actual en la que estamos operando
+                after_idx = m.end()
+                add_space = False
+                if after_idx < len(m.string) and m.string[after_idx].isalnum():
+                    add_space = True
+                # evitar duplicar espacios si repl ya termina con espacio
+                return repl + (' ' if add_space and not repl.endswith(' ') else '')
 
-    cleaned = re.sub(pattern, replace_match, text, flags=re.IGNORECASE)
+            s = re.sub(re.escape(term), _repl_nonword, s, flags=re.IGNORECASE)
 
-    # Normalizar espacios múltiples
-    return re.sub(r'\s+', ' ', cleaned).strip()
+    # Normalizar espacios múltiples y bordes
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
 
-
+# ---------------------------
+# Extracción de XML (igual que tenías)
+# ---------------------------
 def extract_data_from_xml(file, filename):
-    """
-    Extrae todos los datos de Note/Text y PartType id de un archivo XML (desde UploadedFile)
-    """
     try:
         tree = ET.parse(file)
         root = tree.getroot()
 
         data = []
 
-        for app in root.findall('.//App'):  # App en cualquier nivel
+        for app in root.findall('.//App'):
             parttype_element = app.find('PartType')
             parttype_id = parttype_element.get('id', '') if parttype_element is not None else ""
 
@@ -88,12 +103,10 @@ def extract_data_from_xml(file, filename):
         st.error(f"Error procesando archivo {filename}: {type(e).__name__} - {str(e)}")
         return []
 
-
-def convert_xmls_to_excel(uploaded_files):
-    """
-    Convierte múltiples archivos XML subidos a un único Excel (BytesIO)
-    con barra de progreso y limpieza de textos
-    """
+# ---------------------------
+# Conversión y UI
+# ---------------------------
+def convert_xmls_to_excel(uploaded_files, replacements):
     all_data = []
     total_files = len(uploaded_files)
     progress_bar = st.progress(0)
@@ -107,7 +120,6 @@ def convert_xmls_to_excel(uploaded_files):
         else:
             st.warning(f"El archivo {uploaded_file.name} está vacío y será omitido.")
 
-        # actualizar progreso
         progress = int(i / total_files * 100)
         progress_bar.progress(progress)
 
@@ -117,8 +129,8 @@ def convert_xmls_to_excel(uploaded_files):
         df = pd.DataFrame(all_data)
         df.drop_duplicates(inplace=True)
 
-        # Aplicar limpieza exacta a la columna
-        df['Note/Text/MfrLabel_Clean'] = df['Note/Text/MfrLabel'].apply(lambda x: clean_text(x, replace_dict))
+        # Aplicar limpieza segura
+        df['Note/Text/MfrLabel_Clean'] = df['Note/Text/MfrLabel'].apply(lambda x: clean_text(x, replacements))
 
         output = BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
@@ -129,9 +141,8 @@ def convert_xmls_to_excel(uploaded_files):
     else:
         return None, None
 
-
-# --- Streamlit UI ---
-st.title("XML to Excel Converter (con limpieza de textos)")
+# Streamlit UI
+st.title("XML to Excel Converter (limpieza segura de términos)")
 
 uploaded_files = st.file_uploader(
     "Sube uno o varios archivos XML",
@@ -139,16 +150,25 @@ uploaded_files = st.file_uploader(
     type="xml"
 )
 
+# Área para probar texto suelto rápido
+st.markdown("**Probar limpieza rápida:** pega una línea y pulsa el botón.")
+sample_input = st.text_area("Texto de prueba", "w/HD Dana 60 Fr Axle\nCamber: ± 1.75 Degrees\nCamber: plus or minus 1.75 Degrees", height=120)
+if st.button("Limpiar texto de prueba"):
+    out_lines = []
+    for line in sample_input.splitlines():
+        out_lines.append(clean_text(line, replace_dict))
+    st.text("\n".join(out_lines))
+
 if uploaded_files:
     st.success(f"Se cargaron {len(uploaded_files)} archivo(s).")
 
     if st.button("Convertir a Excel"):
-        excel_file, df_preview = convert_xmls_to_excel(uploaded_files)
+        excel_file, df_preview = convert_xmls_to_excel(uploaded_files, replace_dict)
 
         if df_preview is not None:
             st.write(f"Unique Notes/Text/MfrLabel: {df_preview['Note/Text/MfrLabel'].nunique()}")
             st.write(f"Unique PartType_IDs: {df_preview['PartType_ID'].nunique()}")
-            st.dataframe(df_preview.head(20))  # vista previa
+            st.dataframe(df_preview.head(20))
 
         if excel_file:
             st.download_button(

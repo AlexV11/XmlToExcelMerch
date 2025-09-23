@@ -32,11 +32,15 @@ def clean_text(text, replacements):
         found = match.group(0)
         for old, new in replacements.items():
             if found.lower() == old.lower():
+                # añadir un espacio después del reemplazo si lo que sigue es letra/número
+                after = match.end()
+                if after < len(text) and text[after].isalnum():
+                    return new + " "
                 return new
         return found
 
     cleaned = re.sub(pattern, replace_match, text, flags=re.IGNORECASE)
-    # Normalizar espacios
+    # normalizar espacios múltiples
     return re.sub(r'\s+', ' ', cleaned).strip()
 
 def extract_data_from_xml(file, filename):

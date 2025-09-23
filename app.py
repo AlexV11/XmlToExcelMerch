@@ -23,19 +23,23 @@ replace_dict = load_replacements_from_excel()
 
 def clean_text(text, replacements):
     """
-    Aplica reemplazos exactos de palabras usando regex con límites de palabra,
+    Aplica reemplazos exactos de palabras usando regex,
     ignorando mayúsculas/minúsculas.
+    Funciona con símbolos como W/, A.I.R., etc.
     """
     if not text:
         return text
+
     for old, new in replacements.items():
-        # patrón con límites de palabra y escapando caracteres especiales
-        pattern = r"\b" + re.escape(old) + r"\b"
-        # reemplaza sin importar mayúsculas/minúsculas
+        # Escapar el término para regex
+        escaped_old = re.escape(old)
+
+        # Patrón: inicio o espacio antes, y fin o espacio después
+        pattern = r'(?<!\w)' + escaped_old + r'(?!\w)'
+
         text = re.sub(pattern, new, text, flags=re.IGNORECASE)
+
     return text
-
-
 
 def extract_data_from_xml(file, filename):
     """

@@ -3,6 +3,33 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from io import BytesIO
 import os
+import re
+
+# --- Diccionario de reemplazos ---
+replace_dict = {
+    "Band-Aid": "adhesive bandage",
+    "Durex": "adhesive tape",
+    "ADJ": "Adjustable",
+    "ACERT": "Advanced Combustion Emissions Reduction Technology",
+    "AECM": "Air Bag Electronic Control Module",
+    "A.I.R.": "Air Induction Reactor",
+    "ALUM": "Aluminum",
+    "a.m.": "AM",
+    "A.M.": "AM",
+    "AMER": "American"
+}
+
+def clean_text(text, replacements):
+    """
+    Aplica reemplazos exactos de palabras usando regex con límites de palabra.
+    """
+    if not text:
+        return text
+    for old, new in replacements.items():
+        # re.escape asegura que caracteres especiales (puntos, guiones, etc.) no rompan el patrón
+        pattern = r"\b" + re.escape(old) + r"\b"
+        text = re.sub(pattern, new, text)
+    return text
 
 
 def extract_data_from_xml(file, filename):
@@ -21,8 +48,7 @@ def extract_data_from_xml(file, filename):
 
             notes = [n.text or "" for n in app.findall('.//Note')] + [n.text or "" for n in app.findall('.//note')]
             texts = [t.text or "" for t in app.findall('.//Text')] + [t.text or "" for t in app.findall('.//text')]
-            labels = [l.text or "" for l in app.findall('.//MfrLabel')] + [l.text or "" for l in
-                                                                           app.findall('.//mfrlabel')]
+            labels = [l.text or "" for l in app.findall('.//MfrLabel')] + [l.text or "" for l in app.findall('.//mfrlabel')]
 
             for value in notes + texts + labels:
                 if value or parttype_id:
@@ -46,7 +72,7 @@ def extract_data_from_xml(file, filename):
 def convert_xmls_to_excel(uploaded_files):
     """
     Convierte múltiples archivos XML subidos a un único Excel (BytesIO)
-    con barra de progreso
+    con barra de progreso y limpieza de textos
     """
     all_data = []
     total_files = len(uploaded_files)
@@ -71,6 +97,9 @@ def convert_xmls_to_excel(uploaded_files):
         df = pd.DataFrame(all_data)
         df.drop_duplicates(inplace=True)
 
+        # Aplicar limpieza exacta a la columna
+        df['Note/Text/MfrLabel_Clean'] = df['Note/Text/MfrLabel'].apply(lambda x: clean_text(x, replace_dict))
+
         output = BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
             df.to_excel(writer, index=False, sheet_name="XML_Data")
@@ -81,8 +110,8 @@ def convert_xmls_to_excel(uploaded_files):
         return None, None
 
 
-# Streamlit UI
-st.title("XML to Excel Converter")
+# --- Streamlit UI ---
+st.title("XML to Excel Converter (con limpieza de textos)")
 
 uploaded_files = st.file_uploader(
     "Sube uno o varios archivos XML",
@@ -96,8 +125,10 @@ if uploaded_files:
     if st.button("Convertir a Excel"):
         excel_file, df_preview = convert_xmls_to_excel(uploaded_files)
 
-        st.write(f"Unique Notes/Text/MfrLabel: {df_preview['Note/Text/MfrLabel'].nunique()}")
-        st.write(f"Unique PartType_IDs: {df_preview['PartType_ID'].nunique()}")
+        if df_preview is not None:
+            st.write(f"Unique Notes/Text/MfrLabel: {df_preview['Note/Text/MfrLabel'].nunique()}")
+            st.write(f"Unique PartType_IDs: {df_preview['PartType_ID'].nunique()}")
+            st.dataframe(df_preview.head(20))  # vista previa
 
         if excel_file:
             st.download_button(

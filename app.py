@@ -24,48 +24,66 @@ replace_dict = load_replacements_from_excel()
 # ---------------------------
 # Función de limpieza robusta
 # ---------------------------
+# ---------------------------
+# Helpers para limpieza
+# ---------------------------
+
+def build_pattern_from_keys(keys):
+    """
+    Construye un patrón alternante:
+     - términos alfanuméricos -> con \b...\b (evita sustituir dentro de palabras)
+     - términos con símbolos   -> literal escapado
+    Ordena de mayor a menor longitud para evitar solapamientos.
+    """
+    keys_sorted = sorted(keys, key=lambda k: len(k), reverse=True)
+    parts = []
+    for k in keys_sorted:
+        esc = re.escape(k.strip())
+        if k.strip().isalnum():
+            parts.append(rf"\b{esc}\b")
+        else:
+            parts.append(esc)
+    return re.compile("|".join(parts), flags=re.IGNORECASE)
+
+
 def clean_text(text, replacements):
     """
-    Reemplaza términos según 'replacements' de forma segura:
-    - términos alfanuméricos: reemplazo con límites de palabra (\b)
-    - términos con símbolos: reemplazo literal en cualquier posición;
-      si lo que sigue es letra/dígito, añade un espacio después del reemplazo
-    - evita reemplazos parciales gracias al orden por longitud inversa
-    - normaliza espacios múltiples al final
+    Aplica sustituciones seguras y normaliza capitalización:
+    - Sustituye términos de replacements (case-insensitive)
+    - Preserva tokens en mayúsculas que ya venían así en el string original
+    - Los demás tokens se pasan a Capitalize (primera letra mayúscula, resto minúscula)
     """
     if not text:
         return text
 
-    s = text
+    # --- 1) Tokens en mayúsculas del string original ---
+    original_tokens = re.findall(r"\w+", text, flags=re.UNICODE)
+    uppercase_tokens = {tok.upper() for tok in original_tokens if tok.isupper()}
 
-    # Ordenar términos por longitud (más largos primero)
-    sorted_terms = sorted(replacements.keys(), key=len, reverse=True)
+    # --- 2) Sustituciones ---
+    lookup = {k.casefold(): v for k, v in replacements.items()}
+    pattern = build_pattern_from_keys(list(replacements.keys()))
 
-    for term in sorted_terms:
-        repl = replacements[term]
+    def _repl(m):
+        matched = m.group(0)
+        return lookup.get(matched.casefold(), matched)
 
-        # ¿term es estrictamente \w+ (letras/dígitos/underscore)?
-        if re.fullmatch(r'\w+', term):
-            # usar límites de palabra: no reemplaza dentro de otras palabras
-            pattern = r'\b' + re.escape(term) + r'\b'
-            s = re.sub(pattern, repl, s, flags=re.IGNORECASE)
+    replaced = pattern.sub(_repl, text)
+
+    # --- 3) Capitalización condicional ---
+    parts = re.split(r"(\W+)", replaced, flags=re.UNICODE)  # separa preservando delimitadores
+    out_parts = []
+    for p in parts:
+        if re.fullmatch(r"\w+", p, flags=re.UNICODE):  # token alfanumérico
+            if p.upper() in uppercase_tokens:          # estaba todo en mayúsculas en el original
+                out_parts.append(p.upper())
+            else:
+                out_parts.append(p.capitalize())
         else:
-            # term contiene símbolos (/, ., -, etc.): buscamos literal en cualquier lugar
-            # añadimos espacio si lo que sigue al match es alfanumérico
-            def _repl_nonword(m):
-                # m.string es la cadena actual en la que estamos operando
-                after_idx = m.end()
-                add_space = False
-                if after_idx < len(m.string) and m.string[after_idx].isalnum():
-                    add_space = True
-                # evitar duplicar espacios si repl ya termina con espacio
-                return repl + (' ' if add_space and not repl.endswith(' ') else '')
+            out_parts.append(p)  # separadores tal cual
 
-            s = re.sub(re.escape(term), _repl_nonword, s, flags=re.IGNORECASE)
+    return "".join(out_parts)
 
-    # Normalizar espacios múltiples y bordes
-    s = re.sub(r'\s+', ' ', s).strip()
-    return s
 
 # ---------------------------
 # Extracción de XML (igual que tenías)

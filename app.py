@@ -25,23 +25,32 @@ def clean_text(text, replacements):
     if not text:
         return text
 
+    # Diccionario normalizado (todo a minúsculas para comparación)
+    norm_replacements = {k.lower(): v for k, v in replacements.items()}
+
+    # Ordenar términos por longitud inversa para no romper reemplazos
     sorted_terms = sorted(replacements.keys(), key=len, reverse=True)
+
+    # Crear patrón que busca cada término tal cual aparece
     pattern = r'(' + '|'.join(re.escape(term) for term in sorted_terms) + r')'
 
     def replace_match(match):
         found = match.group(0)
-        for old, new in replacements.items():
-            if found.lower() == old.lower():
-                # añadir un espacio después del reemplazo si lo que sigue es letra/número
-                after = match.end()
-                if after < len(text) and text[after].isalnum():
-                    return new + " "
-                return new
+        key = found.lower()
+        if key in norm_replacements:
+            new = norm_replacements[key]
+            # Si lo que viene después está pegado a letras/números, añadimos espacio
+            after = match.end()
+            if after < len(text) and text[after].isalnum():
+                return new + " "
+            return new
         return found
 
     cleaned = re.sub(pattern, replace_match, text, flags=re.IGNORECASE)
-    # normalizar espacios múltiples
+
+    # Normalizar espacios múltiples
     return re.sub(r'\s+', ' ', cleaned).strip()
+
 
 def extract_data_from_xml(file, filename):
     """

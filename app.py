@@ -6,18 +6,20 @@ import os
 import re
 
 # --- Diccionario de reemplazos ---
-replace_dict = {
-    "Band-Aid": "adhesive bandage",
-    "Durex": "adhesive tape",
-    "ADJ": "Adjustable",
-    "ACERT": "Advanced Combustion Emissions Reduction Technology",
-    "AECM": "Air Bag Electronic Control Module",
-    "A.I.R.": "Air Induction Reactor",
-    "ALUM": "Aluminum",
-    "a.m.": "AM",
-    "A.M.": "AM",
-    "AMER": "American"
-}
+# --- Cargar reemplazos desde Replacements.xlsx ---
+def load_replacements_from_excel(filepath="Replacements.xlsx"):
+    """
+    Carga pares de reemplazo desde un archivo Excel con columnas 'old_word' y 'new_word'.
+    """
+    if os.path.exists(filepath):
+        df = pd.read_excel(filepath)
+        # Espera columnas: old_word, new_word
+        return dict(zip(df['old_word'].astype(str), df['new_word'].astype(str)))
+    else:
+        st.warning(f"No se encontró {filepath}. El diccionario de reemplazos estará vacío.")
+        return {}
+
+replace_dict = load_replacements_from_excel()
 
 def clean_text(text, replacements):
     """

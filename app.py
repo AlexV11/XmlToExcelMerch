@@ -22,29 +22,22 @@ def load_replacements_from_excel(filepath="Replacements.xlsx"):
 replace_dict = load_replacements_from_excel()
 
 def clean_text(text, replacements):
-    """
-    Aplica reemplazos exactos de los términos definidos en replacements,
-    ignorando mayúsculas/minúsculas, incluso si están pegados a otras palabras.
-    """
     if not text:
         return text
 
-    # Ordenar por longitud inversa para evitar que se rompan reemplazos
     sorted_terms = sorted(replacements.keys(), key=len, reverse=True)
-
-    # Unir todos los términos en un solo patrón alternativo
     pattern = r'(' + '|'.join(re.escape(term) for term in sorted_terms) + r')'
 
     def replace_match(match):
         found = match.group(0)
-        # Buscar el término ignorando mayúsculas
         for old, new in replacements.items():
             if found.lower() == old.lower():
                 return new
-        return found  # fallback
+        return found
 
-    return re.sub(pattern, replace_match, text, flags=re.IGNORECASE)
-
+    cleaned = re.sub(pattern, replace_match, text, flags=re.IGNORECASE)
+    # Normalizar espacios
+    return re.sub(r'\s+', ' ', cleaned).strip()
 
 def extract_data_from_xml(file, filename):
     """

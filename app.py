@@ -14,7 +14,7 @@ def load_replacements_from_excel(filepath="Replacements.xlsx"):
     if os.path.exists(filepath):
         df = pd.read_excel(filepath)
         # Espera columnas: old_word, new_word
-        return dict(zip(df['old_word'].astype(str), df['new_word'].astype(str)))
+        return dict(zip(df['Term'].astype(str), df['New Term'].astype(str)))
     else:
         st.warning(f"No se encontró {filepath}. El diccionario de reemplazos estará vacío.")
         return {}

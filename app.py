@@ -23,15 +23,18 @@ replace_dict = load_replacements_from_excel()
 
 def clean_text(text, replacements):
     """
-    Aplica reemplazos exactos de palabras usando regex con límites de palabra.
+    Aplica reemplazos exactos de palabras usando regex con límites de palabra,
+    ignorando mayúsculas/minúsculas.
     """
     if not text:
         return text
     for old, new in replacements.items():
-        # re.escape asegura que caracteres especiales (puntos, guiones, etc.) no rompan el patrón
+        # patrón con límites de palabra y escapando caracteres especiales
         pattern = r"\b" + re.escape(old) + r"\b"
-        text = re.sub(pattern, new, text)
+        # reemplaza sin importar mayúsculas/minúsculas
+        text = re.sub(pattern, new, text, flags=re.IGNORECASE)
     return text
+
 
 
 def extract_data_from_xml(file, filename):

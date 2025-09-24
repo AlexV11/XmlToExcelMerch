@@ -13,7 +13,9 @@ def load_replacements_from_excel(filepath="Replacements.xlsx"):
     """
     if os.path.exists(filepath):
         df = pd.read_excel(filepath)
-        # Espera columnas: old_word, new_word
+        # elimina los strings que digan '#N/A' de df['New Term']
+        df = df[df['New Term'].notna() & (df['New Term'].astype(str).str.upper() != '#N/A')]
+
         return dict(zip(df['Term'].astype(str), df['New Term'].astype(str)))
     else:
         st.warning(f"No se encontró {filepath}. El diccionario de reemplazos estará vacío.")

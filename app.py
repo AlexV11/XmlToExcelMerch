@@ -24,9 +24,6 @@ def load_replacements_from_excel(filepath="Replacements.xlsx"):
 replace_dict = load_replacements_from_excel()
 
 # ---------------------------
-# Función de limpieza robusta
-# ---------------------------
-# ---------------------------
 # Helpers para limpieza
 # ---------------------------
 
@@ -50,41 +47,56 @@ def build_pattern_from_keys(keys):
 
 def clean_text(text, replacements):
     """
-    Aplica sustituciones seguras y normaliza capitalización:
-    - Sustituye términos de replacements (case-insensitive)
-    - Preserva tokens en mayúsculas que ya venían así en el string original
-    - Los demás tokens se pasan a Capitalize (primera letra mayúscula, resto minúscula)
+    Reemplaza términos y ajusta formato:
+    - Aplica diccionario de reemplazos con seguridad
+    - Mantiene palabras en MAYÚSCULAS (ej. OBD, ABS)
+    - Para lo demás: solo la primera letra de todo el string en mayúscula,
+      el resto en minúsculas
     """
     if not text:
         return text
 
-    # --- 1) Tokens en mayúsculas del string original ---
-    original_tokens = re.findall(r"\w+", text, flags=re.UNICODE)
-    uppercase_tokens = {tok.upper() for tok in original_tokens if tok.isupper()}
+    s = text
 
-    # --- 2) Sustituciones ---
-    lookup = {k.casefold(): v for k, v in replacements.items()}
-    pattern = build_pattern_from_keys(list(replacements.keys()))
+    # --- Reemplazos ---
+    sorted_terms = sorted(replacements.keys(), key=len, reverse=True)
+    for term in sorted_terms:
+        repl = replacements[term] if replacements[term] is not None else ""
 
-    def _repl(m):
-        matched = m.group(0)
-        return lookup.get(matched.casefold(), matched)
-
-    replaced = pattern.sub(_repl, text)
-
-    # --- 3) Capitalización condicional ---
-    parts = re.split(r"(\W+)", replaced, flags=re.UNICODE)  # separa preservando delimitadores
-    out_parts = []
-    for p in parts:
-        if re.fullmatch(r"\w+", p, flags=re.UNICODE):  # token alfanumérico
-            if p.upper() in uppercase_tokens:          # estaba todo en mayúsculas en el original
-                out_parts.append(p.upper())
-            else:
-                out_parts.append(p.capitalize())
+        if re.fullmatch(r'\w+', term):
+            # términos alfanuméricos → con \b
+            pattern = r'\b' + re.escape(term) + r'\b'
+            s = re.sub(pattern, repl, s, flags=re.IGNORECASE)
         else:
-            out_parts.append(p)  # separadores tal cual
+            # términos con símbolos → buscar literal y añadir espacio si corresponde
+            def _repl_nonword(m):
+                after_idx = m.end()
+                add_space = after_idx < len(m.string) and m.string[after_idx].isalnum()
+                # si el reemplazo no termina en espacio y lo siguiente es letra/dígito, agregarlo
+                return repl + (' ' if add_space and not repl.endswith(' ') else '')
+            s = re.sub(re.escape(term), _repl_nonword, s, flags=re.IGNORECASE)
 
-    return "".join(out_parts)
+    # Normalizar espacios
+    s = re.sub(r'\s+', ' ', s).strip()
+
+    if not s:
+        return s
+
+    # --- Manejo de mayúsculas ---
+    words = s.split()
+    new_words = []
+    for w in words:
+        if w.isupper():
+            new_words.append(w)        # conservar acrónimos
+        else:
+            new_words.append(w.lower())  # minúsculas temporales
+
+    # reconstruir y aplicar capitalización global
+    s = " ".join(new_words)
+    s = s[0].upper() + s[1:] if len(s) > 1 else s.upper()
+
+    return s
+
 
 
 # ---------------------------
